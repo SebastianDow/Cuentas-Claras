@@ -1,9 +1,12 @@
+
 export type Language = 'es' | 'en' | 'fr' | 'pt';
 export type Currency = 'USD' | 'EUR' | 'COP' | 'MXN' | 'GBP';
 export type Theme = 'light' | 'dark' | 'system';
 
 export type TransactionType = 'expense' | 'income' | 'transfer';
 export type AccountType = 'cash' | 'savings' | 'checking' | 'credit_card' | 'investment';
+export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type InterestFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface NotificationSettings {
   lowBalance: boolean;
@@ -33,9 +36,14 @@ export interface Account {
   id: string;
   name: string;
   type: AccountType;
-  balance: number;
+  balance: number; // Current Principal
   currency: Currency;
   icon?: string;
+  // Advanced Interest Logic
+  enableInterest?: boolean;
+  interestRate?: number; // Percentage
+  interestFrequency?: InterestFrequency;
+  startDate?: string; // ISO String
 }
 
 export interface Transaction {
@@ -50,7 +58,17 @@ export interface Transaction {
   title: string;
   description?: string;
   isRecurring?: boolean;
-  frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  frequency?: Frequency;
+  generatedFromRuleId?: string;
+}
+
+export interface RecurringRule {
+  id: string;
+  template: Omit<Transaction, 'id' | 'date' | 'generatedFromRuleId'>;
+  frequency: Frequency;
+  nextDueDate: string;
+  notify: boolean;
+  active: boolean;
 }
 
 export interface Goal {
@@ -61,18 +79,36 @@ export interface Goal {
   currency: Currency;
   deadline?: string;
   isCompleted: boolean;
+  icon?: string;
 }
 
 export interface Debt {
   id: string;
   personName: string;
-  amount: number;
+  amount: number; // The Principal (Capital)
   currency: Currency;
   type: 'owes_me' | 'i_owe';
   dueDate?: string;
   description?: string;
+  icon?: string;
+  // Advanced Interest Logic
+  enableInterest?: boolean;
+  interestRate?: number; // Percentage
+  interestFrequency?: InterestFrequency; // Renamed from interestPeriod for consistency
+  startDate?: string; // ISO String for calculation start
 }
 
 export interface ExchangeRates {
   [key: string]: number; // Base USD
+}
+
+export interface FilterState {
+    dateRange: {
+        start: string | null; // ISO Date String (YYYY-MM-DD)
+        end: string | null;
+    };
+    entityType: 'all' | 'account' | 'goal' | 'debt';
+    entityId: string | 'all';
+    category: string | 'all';
+    transactionType: 'all' | 'income' | 'expense' | 'transfer';
 }

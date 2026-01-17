@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { Onboarding } from './components/Onboarding';
@@ -6,39 +7,58 @@ import { Dashboard } from './components/Dashboard';
 import { History } from './components/History';
 import { SettingsScreen } from './components/Settings';
 import { AddRecordModal } from './components/AddRecordModal';
-import { History as HistoryIcon, Home as HomeIcon } from 'lucide-react';
+import { Toast } from './components/Toast';
 
 const AppContent: React.FC = () => {
   const { settings } = useFinance();
   const [currentView, setCurrentView] = useState<'dashboard' | 'history' | 'settings'>('dashboard');
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Navigation Params
+  const [historyFilter, setHistoryFilter] = useState<string | undefined>(undefined);
+  const [historyViewMode, setHistoryViewMode] = useState<'list' | 'chart'>('list');
+
+  const handleViewHistory = (accountId?: string, viewMode: 'list' | 'chart' = 'list') => {
+      setHistoryFilter(accountId);
+      setHistoryViewMode(viewMode);
+      setCurrentView('history');
+  };
+
+  const handleTabChange = (tab: any) => {
+      if (tab !== 'history') {
+          setHistoryFilter(undefined);
+          setHistoryViewMode('list');
+      }
+      setCurrentView(tab);
+  }
 
   if (!settings.hasOnboarded) {
     return <Onboarding />;
   }
 
   return (
-    <div className="min-h-screen text-gray-900 dark:text-white">
-      {/* Header is persistent only on Dashboard */}
-      <Header currentTab={currentView} onTabChange={setCurrentView} />
+    <div className="min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
+      {/* Global Toast */}
+      <Toast />
 
-      <main>
-        {currentView === 'dashboard' && <Dashboard onAddRecord={() => setShowAddModal(true)} />}
-        {currentView === 'history' && <History onBack={() => setCurrentView('dashboard')} />}
+      <Header currentTab={currentView} onTabChange={handleTabChange} />
+
+      <main className="w-full max-w-4xl mx-auto">
+        {currentView === 'dashboard' && (
+            <Dashboard 
+                onAddRecord={() => setShowAddModal(true)} 
+                onViewHistory={handleViewHistory}
+            />
+        )}
+        {currentView === 'history' && (
+            <History 
+                onBack={() => setCurrentView('dashboard')} 
+                initialAccountId={historyFilter}
+                initialViewMode={historyViewMode}
+            />
+        )}
         {currentView === 'settings' && <SettingsScreen onBack={() => setCurrentView('dashboard')} />}
       </main>
-
-      {/* Navigation (Only on Dashboard to switch to History easily) */}
-      {currentView === 'dashboard' && (
-          <div className="fixed top-6 right-6 z-50">
-             <button 
-               onClick={() => setCurrentView('history')}
-               className="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur shadow-md rounded-full text-blue-600 hover:scale-110 transition-transform"
-             >
-                <HistoryIcon size={24} />
-             </button>
-          </div>
-      )}
 
       {showAddModal && <AddRecordModal onClose={() => setShowAddModal(false)} />}
     </div>

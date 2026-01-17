@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { TRANSLATIONS, SUPPORTED_CURRENCIES } from '../constants';
+import { TRANSLATIONS, SUPPORTED_CURRENCIES, ACCOUNT_TYPES } from '../constants';
 import { Button } from './Button';
-import { X, Wallet, Target, Users } from 'lucide-react';
-import { Currency, Account, Goal, Debt, AccountType } from '../types';
-import { getCurrencySymbol } from '../services/financeService';
+import { X, Wallet, Target, Users, ArrowDownLeft, ArrowUpRight, Percent, ChevronDown, ChevronUp } from 'lucide-react';
+import { Currency, Account, Goal, Debt, AccountType, InterestFrequency } from '../types';
+import { getCurrencySymbol, toLocalDateString, dateFromInput } from '../services/financeService';
+import { IconMap, ENTITY_ICONS } from './icons';
 
 type EntityType = 'account' | 'goal' | 'debt';
 
@@ -21,6 +22,8 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
   // Common State
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState<Currency>(settings.currency);
+  const [selectedIcon, setSelectedIcon] = useState<string>('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   // Account State
   const [accountType, setAccountType] = useState<AccountType>('cash');
@@ -35,16 +38,36 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
   const [debtAmount, setDebtAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [description, setDescription] = useState('');
+  
+  // Shared Interest Logic State (For Debt and Accounts)
+  const [enableInterest, setEnableInterest] = useState(false);
+  const [interestRate, setInterestRate] = useState('');
+  const [interestFrequency, setInterestFrequency] = useState<InterestFrequency>('monthly');
+  const [startDate, setStartDate] = useState(() => toLocalDateString(new Date()));
+
+  const getDefaultIcon = (t: EntityType) => {
+    if (t === 'account') return 'Wallet';
+    if (t === 'goal') return 'Target';
+    return 'Users';
+  };
 
   useEffect(() => {
     if (initialData) {
       setCurrency(initialData.currency);
+      setSelectedIcon(initialData.icon || getDefaultIcon(type));
       
       if (type === 'account') {
         const d = initialData as Account;
         setName(d.name);
         setAccountType(d.type);
         setBalance(d.balance.toString());
+        if (d.enableInterest) {
+            setShowAdvanced(true);
+            setEnableInterest(true);
+            setInterestRate(d.interestRate?.toString() || '');
+            setInterestFrequency(d.interestFrequency || 'monthly');
+            setStartDate(d.startDate ? toLocalDateString(new Date(d.startDate)) : toLocalDateString(new Date()));
+        }
       } else if (type === 'goal') {
         const d = initialData as Goal;
         setName(d.name);
@@ -57,7 +80,16 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
         setDebtType(d.type);
         setDueDate(d.dueDate || '');
         setDescription(d.description || '');
+        if (d.enableInterest) {
+            setShowAdvanced(true);
+            setEnableInterest(true);
+            setInterestRate(d.interestRate?.toString() || '');
+            setInterestFrequency(d.interestFrequency || 'monthly');
+            setStartDate(d.startDate ? toLocalDateString(new Date(d.startDate)) : toLocalDateString(new Date()));
+        }
       }
+    } else {
+        setSelectedIcon(getDefaultIcon(type));
     }
   }, [initialData, type]);
 
@@ -71,7 +103,12 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
         name,
         type: accountType,
         balance: parseFloat(balance) || 0,
-        currency
+        currency,
+        icon: selectedIcon,
+        enableInterest: accountType !== 'cash' ? enableInterest : false,
+        interestRate: enableInterest ? parseFloat(interestRate) : undefined,
+        interestFrequency: enableInterest ? interestFrequency : undefined,
+        startDate: enableInterest ? dateFromInput(startDate) : undefined
       };
       initialData ? updateAccount(payload) : addAccount(payload);
     } else if (type === 'goal') {
@@ -81,7 +118,8 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
         targetAmount: parseFloat(targetAmount) || 0,
         currentAmount: parseFloat(currentSaved) || 0,
         currency,
-        isCompleted: (parseFloat(currentSaved) || 0) >= (parseFloat(targetAmount) || 1)
+        isCompleted: (parseFloat(currentSaved) || 0) >= (parseFloat(targetAmount) || 1),
+        icon: selectedIcon
       };
       initialData ? updateGoal(payload) : addGoal(payload);
     } else if (type === 'debt') {
@@ -92,7 +130,12 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
         currency,
         type: debtType,
         dueDate: dueDate || undefined,
-        description
+        description,
+        icon: selectedIcon,
+        enableInterest,
+        interestRate: enableInterest ? parseFloat(interestRate) : undefined,
+        interestFrequency: enableInterest ? interestFrequency : undefined,
+        startDate: enableInterest ? dateFromInput(startDate) : undefined
       };
       initialData ? updateDebt(payload) : addDebt(payload);
     }
@@ -113,11 +156,71 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
     return initialData ? t.edit_debt : t.add_debt;
   };
 
+  // Reusable Component for Interest Settings
+  const InterestSection = () => (
+     <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-4 animate-fade-in">
+         <div className="flex items-center justify-between">
+             <div className="flex items-center gap-2">
+                 <div className="p-1.5 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg text-yellow-600">
+                     <Percent size={16} />
+                 </div>
+                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t.enable_interest}</span>
+             </div>
+             <button 
+                type="button"
+                onClick={() => setEnableInterest(!enableInterest)}
+                className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${enableInterest ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+             >
+                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${enableInterest ? 'translate-x-6' : 'translate-x-0'}`} />
+             </button>
+         </div>
+
+         {enableInterest && (
+             <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-fade-in">
+                 <div className="grid grid-cols-2 gap-3">
+                     <div>
+                         <label className="block text-xs font-medium text-gray-500 mb-1">{t.interest_rate}</label>
+                         <input 
+                            type="number"
+                            value={interestRate}
+                            onChange={(e) => setInterestRate(e.target.value)}
+                            className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
+                            placeholder="5"
+                         />
+                     </div>
+                     <div>
+                         <label className="block text-xs font-medium text-gray-500 mb-1">{t.compounding}</label>
+                         <select 
+                            value={interestFrequency}
+                            onChange={(e) => setInterestFrequency(e.target.value as InterestFrequency)}
+                            className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
+                         >
+                             <option value="daily">{t.int_daily}</option>
+                             <option value="weekly">{t.int_weekly}</option>
+                             <option value="monthly">{t.int_monthly}</option>
+                             <option value="yearly">{t.int_yearly}</option>
+                         </select>
+                     </div>
+                 </div>
+                 <div>
+                     <label className="block text-xs font-medium text-gray-500 mb-1">{t.start_date}</label>
+                     <input 
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
+                     />
+                 </div>
+             </div>
+         )}
+     </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
       
-      <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-6 relative shadow-2xl animate-fade-in-up">
+      <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-6 relative shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto custom-scrollbar">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
             {type === 'account' && <Wallet className="text-blue-500" size={24} />}
@@ -131,6 +234,37 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* DEBT TYPE SELECTOR */}
+          {type === 'debt' && (
+             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-4">
+                <button
+                    type="button"
+                    onClick={() => setDebtType('owes_me')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                        debtType === 'owes_me' 
+                        ? 'bg-white dark:bg-gray-700 text-green-600 shadow-sm' 
+                        : 'text-gray-400'
+                    }`}
+                >
+                    <ArrowDownLeft size={14} />
+                    {t.owe_me}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setDebtType('i_owe')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                        debtType === 'i_owe' 
+                        ? 'bg-white dark:bg-gray-700 text-red-600 shadow-sm' 
+                        : 'text-gray-400'
+                    }`}
+                >
+                    <ArrowUpRight size={14} />
+                    {t.i_owe}
+                </button>
+             </div>
+          )}
+
           {/* Name Field */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -144,6 +278,30 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
               placeholder="..."
               autoFocus
             />
+          </div>
+
+          {/* Icon Selector */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">{t.icon_label}</label>
+            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
+                {ENTITY_ICONS.map(iconKey => {
+                const Icon = IconMap[iconKey];
+                return (
+                    <button
+                        key={iconKey}
+                        type="button"
+                        onClick={() => setSelectedIcon(iconKey)}
+                        className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+                        selectedIcon === iconKey 
+                        ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 ring-2 ring-blue-500'
+                        : 'bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        <Icon size={20} />
+                    </button>
+                )
+                })}
+            </div>
           </div>
 
           {/* Currency Selector */}
@@ -177,11 +335,11 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                      onChange={(e) => setAccountType(e.target.value as AccountType)}
                      className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none dark:text-white"
                    >
-                       <option value="cash">Cash</option>
-                       <option value="checking">Checking</option>
-                       <option value="savings">Savings</option>
-                       <option value="credit_card">Credit Card</option>
-                       <option value="investment">Investment</option>
+                       {ACCOUNT_TYPES.map(at => (
+                           <option key={at} value={at}>
+                               {t[`type_${at}` as keyof typeof t] || at}
+                           </option>
+                       ))}
                    </select>
                 </div>
                 <div>
@@ -197,6 +355,22 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                         />
                     </div>
                 </div>
+
+                {/* Account Interest Section (Not for Cash) */}
+                {accountType !== 'cash' && (
+                    <div className="mt-4">
+                        <button 
+                            type="button"
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 hover:text-blue-600 transition-colors"
+                        >
+                            {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            {t.advanced_options}
+                        </button>
+                        
+                        {showAdvanced && <InterestSection />}
+                    </div>
+                )}
             </>
           )}
 
@@ -235,18 +409,8 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
           {/* DEBT SPECIFIC */}
           {type === 'debt' && (
              <>
-                 <div className="flex gap-4 mb-2">
-                    <label className="flex items-center gap-2">
-                        <input type="radio" checked={debtType === 'owes_me'} onChange={() => setDebtType('owes_me')} />
-                        <span className="text-sm dark:text-white">{t.owe_me}</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                        <input type="radio" checked={debtType === 'i_owe'} onChange={() => setDebtType('i_owe')} />
-                        <span className="text-sm dark:text-white">{t.i_owe}</span>
-                    </label>
-                 </div>
                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.amount}</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.capital}</label>
                     <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{getCurrencySymbol(currency)}</span>
                         <input 
@@ -267,6 +431,22 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                         className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
                     />
                  </div>
+
+                 {/* Advanced Toggle for Debt */}
+                 <div className="mt-4">
+                     <button 
+                        type="button"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 hover:text-blue-600 transition-colors"
+                     >
+                        {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {t.advanced_options}
+                     </button>
+                     
+                     {/* Show section if user toggled advanced OR if interest was already enabled (editing) */}
+                     {(showAdvanced || enableInterest) && <InterestSection />}
+                 </div>
+
                  <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t.description}</label>
                     <input 
