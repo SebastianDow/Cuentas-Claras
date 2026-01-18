@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { TRANSLATIONS, SUPPORTED_CURRENCIES, ACCOUNT_TYPES } from '../constants';
@@ -158,13 +159,13 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
 
   // Reusable Component for Interest Settings
   const InterestSection = () => (
-     <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-4 animate-fade-in">
+     <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 space-y-4 animate-fade-in">
          <div className="flex items-center justify-between">
              <div className="flex items-center gap-2">
                  <div className="p-1.5 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg text-yellow-600">
-                     <Percent size={16} />
+                     <Percent size={18} />
                  </div>
-                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t.enable_interest}</span>
+                 <span className="text-base font-bold text-gray-700 dark:text-gray-200">{t.enable_interest}</span>
              </div>
              <button 
                 type="button"
@@ -176,24 +177,24 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
          </div>
 
          {enableInterest && (
-             <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-fade-in">
-                 <div className="grid grid-cols-2 gap-3">
+             <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-4 animate-fade-in">
+                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="block text-xs font-medium text-gray-500 mb-1">{t.interest_rate}</label>
+                         <label className="block text-sm font-semibold text-gray-500 mb-2">{t.interest_rate}</label>
                          <input 
                             type="number"
                             value={interestRate}
                             onChange={(e) => setInterestRate(e.target.value)}
-                            className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
+                            className="w-full p-4 bg-white dark:bg-gray-800 rounded-xl text-lg outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
                             placeholder="5"
                          />
                      </div>
                      <div>
-                         <label className="block text-xs font-medium text-gray-500 mb-1">{t.compounding}</label>
+                         <label className="block text-sm font-semibold text-gray-500 mb-2">{t.compounding}</label>
                          <select 
                             value={interestFrequency}
                             onChange={(e) => setInterestFrequency(e.target.value as InterestFrequency)}
-                            className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
+                            className="w-full p-4 bg-white dark:bg-gray-800 rounded-xl text-base outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
                          >
                              <option value="daily">{t.int_daily}</option>
                              <option value="weekly">{t.int_weekly}</option>
@@ -203,12 +204,12 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                      </div>
                  </div>
                  <div>
-                     <label className="block text-xs font-medium text-gray-500 mb-1">{t.start_date}</label>
+                     <label className="block text-sm font-semibold text-gray-500 mb-2">{t.start_date}</label>
                      <input 
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
+                        className="w-full p-4 bg-white dark:bg-gray-800 rounded-xl text-lg outline-none border border-gray-200 dark:border-gray-700 dark:text-white"
                      />
                  </div>
              </div>
@@ -222,44 +223,44 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
       
       <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-6 relative shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto custom-scrollbar">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
-            {type === 'account' && <Wallet className="text-blue-500" size={24} />}
-            {type === 'goal' && <Target className="text-blue-500" size={24} />}
-            {type === 'debt' && <Users className="text-blue-500" size={24} />}
+          <h2 className="text-2xl font-bold dark:text-white flex items-center gap-2">
+            {type === 'account' && <Wallet className="text-blue-500" size={28} />}
+            {type === 'goal' && <Target className="text-blue-500" size={28} />}
+            {type === 'debt' && <Users className="text-blue-500" size={28} />}
             {getTitle()}
           </h2>
-          <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full">
-            <X size={20} className="text-gray-600 dark:text-gray-300" />
+          <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <X size={24} className="text-gray-600 dark:text-gray-300" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           
           {/* DEBT TYPE SELECTOR */}
           {type === 'debt' && (
-             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-4">
+             <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl mb-4">
                 <button
                     type="button"
                     onClick={() => setDebtType('owes_me')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                         debtType === 'owes_me' 
                         ? 'bg-white dark:bg-gray-700 text-green-600 shadow-sm' 
                         : 'text-gray-400'
                     }`}
                 >
-                    <ArrowDownLeft size={14} />
+                    <ArrowDownLeft size={18} />
                     {t.owe_me}
                 </button>
                 <button
                     type="button"
                     onClick={() => setDebtType('i_owe')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                    className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                         debtType === 'i_owe' 
                         ? 'bg-white dark:bg-gray-700 text-red-600 shadow-sm' 
                         : 'text-gray-400'
                     }`}
                 >
-                    <ArrowUpRight size={14} />
+                    <ArrowUpRight size={18} />
                     {t.i_owe}
                 </button>
              </div>
@@ -267,14 +268,14 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
 
           {/* Name Field */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="block text-sm font-semibold text-gray-500 mb-2">
                 {type === 'debt' ? t.debt_person : (type === 'goal' ? t.goal_name : t.account)}
             </label>
             <input 
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg"
               placeholder="..."
               autoFocus
             />
@@ -282,8 +283,8 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
 
           {/* Icon Selector */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">{t.icon_label}</label>
-            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
+            <label className="block text-sm font-semibold text-gray-500 mb-2">{t.icon_label}</label>
+            <div className="flex flex-wrap gap-3 max-h-32 overflow-y-auto p-1 custom-scrollbar">
                 {ENTITY_ICONS.map(iconKey => {
                 const Icon = IconMap[iconKey];
                 return (
@@ -291,13 +292,13 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                         key={iconKey}
                         type="button"
                         onClick={() => setSelectedIcon(iconKey)}
-                        className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+                        className={`p-3 rounded-2xl transition-all flex items-center justify-center ${
                         selectedIcon === iconKey 
                         ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 ring-2 ring-blue-500'
                         : 'bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                         }`}
                     >
-                        <Icon size={20} />
+                        <Icon size={24} />
                     </button>
                 )
                 })}
@@ -306,14 +307,14 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
 
           {/* Currency Selector */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">{t.currency}</label>
+            <label className="block text-sm font-semibold text-gray-500 mb-2">{t.currency}</label>
             <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
                {SUPPORTED_CURRENCIES.map(c => (
                    <button
                      key={c}
                      type="button"
                      onClick={() => setCurrency(c)}
-                     className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                     className={`px-4 py-3 rounded-xl text-base font-bold border transition-colors ${
                          currency === c
                          ? 'bg-blue-600 border-blue-600 text-white'
                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
@@ -329,11 +330,11 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
           {type === 'account' && (
             <>
                 <div>
-                   <label className="block text-xs font-medium text-gray-500 mb-1">{t.type}</label>
+                   <label className="block text-sm font-semibold text-gray-500 mb-2">{t.type}</label>
                    <select 
                      value={accountType}
                      onChange={(e) => setAccountType(e.target.value as AccountType)}
-                     className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none dark:text-white"
+                     className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none dark:text-white text-lg"
                    >
                        {ACCOUNT_TYPES.map(at => (
                            <option key={at} value={at}>
@@ -343,14 +344,14 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                    </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.initial_balance}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.initial_balance}</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{getCurrencySymbol(currency)}</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-medium">{getCurrencySymbol(currency)}</span>
                         <input 
                             type="number"
                             value={balance}
                             onChange={(e) => setBalance(e.target.value)}
-                            className="w-full pl-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                            className="w-full pl-10 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold"
                             placeholder="0.00"
                         />
                     </div>
@@ -362,9 +363,9 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                         <button 
                             type="button"
                             onClick={() => setShowAdvanced(!showAdvanced)}
-                            className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 hover:text-blue-600 transition-colors"
+                            className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wide mb-2 hover:text-blue-600 transition-colors"
                         >
-                            {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             {t.advanced_options}
                         </button>
                         
@@ -378,27 +379,27 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
           {type === 'goal' && (
              <>
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.target}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.target}</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{getCurrencySymbol(currency)}</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-medium">{getCurrencySymbol(currency)}</span>
                         <input 
                             type="number"
                             value={targetAmount}
                             onChange={(e) => setTargetAmount(e.target.value)}
-                            className="w-full pl-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                            className="w-full pl-10 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold"
                             placeholder="0.00"
                         />
                     </div>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.current_saved}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.current_saved}</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{getCurrencySymbol(currency)}</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-medium">{getCurrencySymbol(currency)}</span>
                         <input 
                             type="number"
                             value={currentSaved}
                             onChange={(e) => setCurrentSaved(e.target.value)}
-                            className="w-full pl-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                            className="w-full pl-10 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold"
                             placeholder="0.00"
                         />
                     </div>
@@ -410,25 +411,25 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
           {type === 'debt' && (
              <>
                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.capital}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.capital}</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{getCurrencySymbol(currency)}</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-medium">{getCurrencySymbol(currency)}</span>
                         <input 
                             type="number"
                             value={debtAmount}
                             onChange={(e) => setDebtAmount(e.target.value)}
-                            className="w-full pl-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                            className="w-full pl-10 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold"
                             placeholder="0.00"
                         />
                     </div>
                  </div>
                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.date}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.date}</label>
                     <input 
                         type="date"
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
-                        className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                        className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg"
                     />
                  </div>
 
@@ -437,9 +438,9 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                      <button 
                         type="button"
                         onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 hover:text-blue-600 transition-colors"
+                        className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wide mb-2 hover:text-blue-600 transition-colors"
                      >
-                        {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                         {t.advanced_options}
                      </button>
                      
@@ -448,25 +449,25 @@ export const ManageEntityModal: React.FC<ManageEntityModalProps> = ({ type, init
                  </div>
 
                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.description}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.description}</label>
                     <input 
                         type="text"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                        className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg"
                         placeholder="..."
                     />
                  </div>
              </>
           )}
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-4 mt-8">
               {initialData && (
-                  <Button type="button" variant="secondary" onClick={handleDelete} className="flex-1 text-red-500 hover:text-red-600">
+                  <Button type="button" variant="secondary" onClick={handleDelete} className="flex-1 text-red-500 hover:text-red-600 text-lg py-4">
                       {t.delete}
                   </Button>
               )}
-              <Button type="submit" variant="primary" size="lg" className="flex-[2]">
+              <Button type="submit" variant="primary" size="lg" className="flex-[2] text-lg py-4 font-bold">
                   {t.save}
               </Button>
           </div>

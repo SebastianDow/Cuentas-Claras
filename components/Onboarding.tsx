@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { TRANSLATIONS, SUPPORTED_CURRENCIES, FLAGS, ACCOUNT_TYPES } from '../constants';
@@ -63,7 +64,7 @@ export const Onboarding: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-black transition-colors">
-      <div className="w-full max-w-md space-y-8 animate-fade-in-up">
+      <div className="w-full max-w-md space-y-8 animate-fade-in-up relative">
         
         {/* STEP 1: NAME */}
         {step === 0 && (
@@ -102,14 +103,15 @@ export const Onboarding: React.FC = () => {
 
         {/* STEP 2: CURRENCY */}
         {step === 1 && (
-            <div className="space-y-8 animate-fade-in">
-                <div className="text-center">
+            <div className="space-y-6 animate-fade-in h-full flex flex-col">
+                <div className="text-center shrink-0">
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-2">
                         {t.select_currency_title}
                     </h1>
                 </div>
                 
-                <div className="grid grid-cols-1 gap-3">
+                {/* Scrollable List with padding for floating button */}
+                <div className="grid grid-cols-1 gap-3 pb-32">
                     {SUPPORTED_CURRENCIES.map(c => (
                         <button
                           key={c}
@@ -127,7 +129,7 @@ export const Onboarding: React.FC = () => {
                                 <div className="text-left">
                                     <span className="block font-bold text-lg text-gray-900 dark:text-white">{c}</span>
                                     <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                        {c === 'USD' ? 'US Dollar' : c === 'EUR' ? 'Euro' : c === 'COP' ? 'Peso Colombiano' : c === 'MXN' ? 'Peso Mexicano' : 'Pound Sterling'}
+                                        {c === 'USD' ? 'US Dollar' : c === 'EUR' ? 'Euro' : c === 'COP' ? 'Peso Colombiano' : c === 'MXN' ? 'Peso Mexicano' : 'Currency'}
                                     </span>
                                 </div>
                             </div>
@@ -138,20 +140,23 @@ export const Onboarding: React.FC = () => {
                     ))}
                 </div>
 
-                <Button 
-                    variant="primary" 
-                    size="lg" 
-                    onClick={handleNext}
-                    className="w-full"
-                >
-                    {t.continue}
-                </Button>
+                {/* Floating Button */}
+                <div className="fixed bottom-6 left-0 right-0 px-6 max-w-md mx-auto z-20">
+                    <Button 
+                        variant="primary" 
+                        size="lg" 
+                        onClick={handleNext}
+                        className="w-full shadow-2xl"
+                    >
+                        {t.continue}
+                    </Button>
+                </div>
             </div>
         )}
 
         {/* STEP 3: FIRST RECORD */}
         {step === 2 && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-6 animate-fade-in pb-10">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-2">
                         {t.setup_first_title}
@@ -168,78 +173,78 @@ export const Onboarding: React.FC = () => {
                             <button
                                 key={type}
                                 onClick={() => setEntityType(type)}
-                                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${
+                                className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${
                                     entityType === type 
                                     ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm'
                                     : 'text-gray-400 dark:text-gray-500'
                                 }`}
                             >
-                                {type === 'account' && <Wallet size={14} />}
-                                {type === 'goal' && <Target size={14} />}
-                                {type === 'debt' && <Users size={14} />}
-                                <span className="hidden sm:inline">
+                                {type === 'account' && <Wallet size={16} />}
+                                {type === 'goal' && <Target size={16} />}
+                                {type === 'debt' && <Users size={16} />}
+                                <span className="hidden sm:inline ml-1">
                                     {type === 'debt' ? t.debt : (type === 'goal' ? t.goal : t.account)}
                                 </span>
                             </button>
                         ))}
                      </div>
 
-                     <form onSubmit={handleCreateAndFinish} className="space-y-4">
+                     <form onSubmit={handleCreateAndFinish} className="space-y-5">
                         {/* DEBT TYPE SELECTOR */}
                         {entityType === 'debt' && (
                              <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-4">
                                 <button
                                     type="button"
                                     onClick={() => setDebtType('owes_me')}
-                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                                    className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                                         debtType === 'owes_me' 
                                         ? 'bg-white dark:bg-gray-700 text-green-600 shadow-sm' 
                                         : 'text-gray-400'
                                     }`}
                                 >
-                                    <ArrowDownLeft size={12} />
+                                    <ArrowDownLeft size={14} />
                                     {t.owe_me}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDebtType('i_owe')}
-                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                                    className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                                         debtType === 'i_owe' 
                                         ? 'bg-white dark:bg-gray-700 text-red-600 shadow-sm' 
                                         : 'text-gray-400'
                                     }`}
                                 >
-                                    <ArrowUpRight size={12} />
+                                    <ArrowUpRight size={14} />
                                     {t.i_owe}
                                 </button>
                              </div>
                         )}
 
                         <div>
-                             <label className="block text-xs font-medium text-gray-500 mb-1">
+                             <label className="block text-sm font-medium text-gray-500 mb-1.5">
                                 {entityType === 'debt' ? t.debt_person : t.concept}
                              </label>
                              <input 
                                 type="text"
                                 value={entityName}
                                 onChange={(e) => setEntityName(e.target.value)}
-                                className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                                className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg"
                                 placeholder="..."
                                 autoFocus
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                            <label className="block text-sm font-medium text-gray-500 mb-1.5">
                                 {entityType === 'goal' ? t.target : t.amount}
                             </label>
                             <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{getCurrencySymbol(currency)}</span>
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">{getCurrencySymbol(currency)}</span>
                                 <input 
                                     type="number"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full pl-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                                    className="w-full pl-10 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -247,11 +252,11 @@ export const Onboarding: React.FC = () => {
 
                         {entityType === 'account' && (
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">{t.type}</label>
+                                <label className="block text-sm font-medium text-gray-500 mb-1.5">{t.type}</label>
                                 <select 
                                     value={accountType}
                                     onChange={(e) => setAccountType(e.target.value as AccountType)}
-                                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none dark:text-white"
+                                    className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none dark:text-white text-base"
                                 >
                                     {ACCOUNT_TYPES.map(at => (
                                         <option key={at} value={at}>
@@ -277,7 +282,7 @@ export const Onboarding: React.FC = () => {
                 <div className="text-center">
                     <button 
                         onClick={finishOnboarding}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm font-medium transition-colors"
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm font-medium transition-colors p-2"
                     >
                         {t.setup_skip}
                     </button>

@@ -1,16 +1,16 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { TRANSLATIONS } from '../constants';
 import { formatCurrency, convertCurrency, formatSmartDate, getCurrencySymbol, formatNumber, calculateDebtDetails, calculateAccountDetails, fitText } from '../services/financeService';
-import { Plus, Wallet, Target, CreditCard, TrendingUp, TrendingDown, Bell, X, Users, ArrowRightLeft, Pencil, Activity } from 'lucide-react';
-import { Account, Goal, Debt, Transaction } from '../types';
+import { Plus, Wallet, Target, CreditCard, TrendingUp, TrendingDown, Bell, X, Users, ArrowRightLeft, Pencil, Activity, PieChart } from 'lucide-react';
+import { Account, Goal, Debt, Transaction, Budget } from '../types';
 import { ManageEntityModal } from './ManageEntityModal';
 import { AddRecordModal } from './AddRecordModal';
+import { BudgetCard } from './BudgetCard';
 import { IconMap } from './icons';
 
-type DashboardTab = 'balance' | 'goals' | 'debts';
+type DashboardTab = 'balance' | 'goals' | 'debts' | 'budgets';
 
 interface DashboardProps {
     onAddRecord: () => void;
@@ -18,13 +18,16 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory }) => {
-  const { settings, accounts, transactions, goals, debts, alerts, dismissAlert, isPrivacyEnabled } = useFinance();
+  const { settings, accounts, transactions, goals, debts, budgets, addBudget, categories, alerts, dismissAlert, isPrivacyEnabled, exchangeRates } = useFinance();
   const [activeTab, setActiveTab] = useState<DashboardTab>('balance');
   
   // Management Modal State
   const [manageType, setManageType] = useState<'account' | 'goal' | 'debt' | null>(null);
   const [editingItem, setEditingItem] = useState<Account | Goal | Debt | undefined>(undefined);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  
+  // Budget Creation State
+  const [showAddBudget, setShowAddBudget] = useState(false);
 
   const t = TRANSLATIONS[settings.language];
 
@@ -44,16 +47,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
   // Calculations
   const totalBalance = accounts.reduce((sum, acc) => {
     const details = calculateAccountDetails(acc);
-    return sum + convertCurrency(details.total, acc.currency, settings.currency);
+    return sum + convertCurrency(details.total, acc.currency, settings.currency, exchangeRates);
   }, 0);
 
   const totalDebtIOwe = debts
     .filter(d => d.type === 'i_owe')
-    .reduce((sum, d) => sum + convertCurrency(calculateDebtDetails(d).total, d.currency, settings.currency), 0);
+    .reduce((sum, d) => sum + convertCurrency(calculateDebtDetails(d).total, d.currency, settings.currency, exchangeRates), 0);
 
   const totalDebtOwedToMe = debts
     .filter(d => d.type === 'owes_me')
-    .reduce((sum, d) => sum + convertCurrency(calculateDebtDetails(d).total, d.currency, settings.currency), 0);
+    .reduce((sum, d) => sum + convertCurrency(calculateDebtDetails(d).total, d.currency, settings.currency, exchangeRates), 0);
 
   const recentTransactions = transactions
     .slice()
@@ -69,8 +72,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
       
       const monthlyTx = transactions.filter(tx => new Date(tx.date) >= startOfMonth && tx.type !== 'transfer');
       
-      const income = monthlyTx.filter(t => t.type === 'income').reduce((sum, t) => sum + convertCurrency(t.amount, t.currency, settings.currency), 0);
-      const expenses = monthlyTx.filter(t => t.type === 'expense').reduce((sum, t) => sum + convertCurrency(t.amount, t.currency, settings.currency), 0);
+      const income = monthlyTx.filter(t => t.type === 'income').reduce((sum, t) => sum + convertCurrency(t.amount, t.currency, settings.currency, exchangeRates), 0);
+      const expenses = monthlyTx.filter(t => t.type === 'expense').reduce((sum, t) => sum + convertCurrency(t.amount, t.currency, settings.currency, exchangeRates), 0);
 
       const expenseRatio = income > 0 ? (expenses / income) : 0;
       const timeRatio = currentDay / daysInMonth;
@@ -83,7 +86,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
       }
 
       return { income, expenses, status, percent: Math.round(expenseRatio * 100) };
-  }, [transactions, settings.currency]);
+  }, [transactions, settings.currency, exchangeRates]);
 
   const openManageModal = (type: 'account' | 'goal' | 'debt', item?: any) => {
       setManageType(type);
@@ -96,7 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
   };
 
   const formattedTotalBalance = displayAmount(totalBalance, settings.currency);
-  const balanceTextSize = fitText(formattedTotalBalance, 'text-4xl');
+  const balanceTextSize = fitText(formattedTotalBalance, 'text-6xl');
 
   return (
     <div className="px-6 pb-24 space-y-6">
@@ -107,24 +110,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
                   <div key={alert.id} className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 p-4 rounded-xl flex items-start gap-3 relative">
                       <div className="text-yellow-600 dark:text-yellow-400 mt-1"><Bell size={18} fill="currentColor" /></div>
                       <div className="flex-1">
-                          <p className="text-sm font-bold text-yellow-800 dark:text-yellow-200">{t[alert.messageKey as keyof typeof t]}</p>
-                          {alert.data && <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">{alert.data}</p>}
+                          <p className="text-base font-bold text-yellow-800 dark:text-yellow-200">{t[alert.messageKey as keyof typeof t]}</p>
+                          {alert.data && <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-0.5">{alert.data}</p>}
                       </div>
-                      <button onClick={() => dismissAlert(alert.id)} className="p-1 hover:bg-black/5 rounded-full text-yellow-800 dark:text-yellow-200"><X size={14} /></button>
+                      <button onClick={() => dismissAlert(alert.id)} className="p-1 hover:bg-black/5 rounded-full text-yellow-800 dark:text-yellow-200"><X size={16} /></button>
                   </div>
               ))}
           </div>
       )}
 
-      {/* Tabs */}
-      <div className="bg-gray-200 dark:bg-gray-800 p-1 rounded-2xl flex relative font-medium text-sm">
-        {(['balance', 'goals', 'debts'] as DashboardTab[]).map((tab) => (
+      {/* Tabs - Grid Layout for perfect centering */}
+      <div className="bg-gray-200 dark:bg-gray-800 p-1.5 rounded-2xl grid grid-cols-4 gap-1 relative font-medium text-sm">
+        {(['balance', 'budgets', 'goals', 'debts'] as DashboardTab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 rounded-xl transition-all duration-300 z-10 ${activeTab === tab ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            className={`py-3 rounded-xl transition-all duration-300 z-10 whitespace-nowrap text-center text-sm sm:text-base ${activeTab === tab ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm font-extrabold' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
           >
             {tab === 'balance' && t.tab_balance}
+            {tab === 'budgets' && t.tab_budgets}
             {tab === 'goals' && t.tab_goals}
             {tab === 'debts' && t.tab_debts}
           </button>
@@ -140,13 +144,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
                 className="w-full text-left bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-6 text-white shadow-xl shadow-blue-500/20 transition-transform active:scale-98 relative overflow-hidden"
             >
               <div className="relative z-10">
-                  <span className="opacity-80 text-sm font-medium">{t.total_balance}</span>
-                  <h2 className={`${balanceTextSize} font-bold mt-2 truncate transition-all duration-300`}>
+                  <span className="opacity-80 text-base font-medium">{t.total_balance}</span>
+                  <h2 className={`${balanceTextSize} font-bold mt-2 truncate transition-all duration-300 tracking-tight`}>
                     {formattedTotalBalance}
                   </h2>
-                  <div className="mt-4 flex gap-3">
-                     <div className="bg-white/20 backdrop-blur-md rounded-lg px-3 py-1 text-xs font-medium">
-                        {accounts.length} {t.my_accounts}
+                  <div className="mt-6 flex gap-3">
+                     <div className="bg-white/20 backdrop-blur-md rounded-lg px-4 py-2 text-base font-medium">
+                        {accounts.length} {t.account}s {/* Using basic pluralization logic for simplicity */}
                      </div>
                   </div>
               </div>
@@ -167,18 +171,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
                              pacingData.status === 'warning' ? 'bg-orange-100 text-orange-600' : 
                              pacingData.status === 'safe' ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-600'
                         }`}>
-                            <Activity size={18} />
+                            <Activity size={22} />
                         </div>
                         <div>
                             <p className="text-xs font-bold text-gray-500 uppercase">{t.spending_pace}</p>
-                            <p className="text-sm font-semibold dark:text-white">
+                            <p className="text-lg font-bold dark:text-white">
                                 {pacingData.status === 'warning' ? t.warning_pace : pacingData.status === 'safe' ? t.safe_pace : 'Normal'}
                             </p>
                         </div>
                     </div>
                     <div className="text-right">
-                         <span className="text-xl font-bold dark:text-white">{pacingData.percent}%</span>
-                         <p className="text-[10px] text-gray-400">of income spent</p>
+                         <span className="text-2xl font-black dark:text-white">{pacingData.percent}%</span>
                     </div>
                 </div>
             )}
@@ -186,9 +189,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
             {/* Accounts List */}
             <div>
               <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t.my_accounts}</h3>
-                 <button onClick={() => openManageModal('account')} className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1">
-                    <Plus size={14} /> {t.add_account}
+                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t.my_accounts}</h3>
+                 <button 
+                    onClick={() => openManageModal('account')} 
+                    className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-5 py-2.5 rounded-full text-base font-bold transition-colors flex items-center gap-2"
+                 >
+                    <Plus size={18} strokeWidth={3} /> {t.add_account}
                  </button>
               </div>
               <div className="space-y-3">
@@ -197,18 +203,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
                   const details = calculateAccountDetails(acc);
                   const hasInterest = details.interest > 0;
                   return (
-                  <div key={acc.id} className="w-full bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left group">
-                    <button onClick={() => onViewHistory(acc.id)} className="flex-1 flex items-center gap-3 min-w-0 text-left outline-none">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0"><Icon size={20} /></div>
+                  <div key={acc.id} className="w-full bg-white dark:bg-gray-900 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left group">
+                    <button onClick={() => onViewHistory(acc.id)} className="flex-1 flex items-center gap-4 min-w-0 text-left outline-none">
+                        <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0"><Icon size={28} /></div>
                         <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-gray-900 dark:text-white truncate text-base">{acc.name}</p>
-                            <p className="text-xs text-gray-500 capitalize truncate">{t[`type_${acc.type}` as keyof typeof t] || acc.type} • {acc.currency}</p>
-                            {hasInterest && <p className="text-[10px] text-blue-500 truncate mt-0.5">+{formatNumber(details.interest, settings.language)} {t.interest}</p>}
+                            <p className="font-bold text-gray-900 dark:text-white truncate text-xl">{acc.name}</p>
+                            <p className="text-base text-gray-500 capitalize truncate mt-1">{t[`type_${acc.type}` as keyof typeof t] || acc.type} • <span className="font-semibold text-gray-600 dark:text-gray-400">{acc.currency}</span></p>
+                            {hasInterest && <p className="text-sm text-blue-500 truncate mt-1">+{formatNumber(details.interest, settings.language)} {t.interest}</p>}
                         </div>
                     </button>
-                    <div className="text-right flex flex-col items-end gap-1">
-                        <span className={`font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap text-base sm:text-lg`}>{displayAmount(details.total, acc.currency)}</span>
-                        <button onClick={(e) => { e.stopPropagation(); openManageModal('account', acc); }} className="p-1.5 text-gray-300 hover:text-blue-600 dark:text-gray-600 dark:hover:text-blue-400 transition-colors"><Pencil size={14} /></button>
+                    <div className="text-right flex flex-col items-end gap-2 pl-2">
+                        <span className={`font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap text-xl`}>{displayAmount(details.total, acc.currency)}</span>
+                        <button onClick={(e) => { e.stopPropagation(); openManageModal('account', acc); }} className="p-2 text-gray-300 hover:text-blue-600 dark:text-gray-600 dark:hover:text-blue-400 transition-colors bg-gray-50 dark:bg-gray-800 rounded-lg"><Pencil size={18} /></button>
                     </div>
                   </div>
                   );
@@ -218,21 +224,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
 
             {/* Movements */}
             <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t.recent_activity}</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t.recent_activity}</h3>
               {recentTransactions.length === 0 ? <div className="text-center py-8 text-gray-400 italic">{t.no_transactions}</div> : (
                 <div className="space-y-4">
                   {recentTransactions.map(tx => (
-                    <button key={tx.id} onClick={() => setEditingTx(tx)} className="w-full flex items-center justify-between group text-left hover:opacity-70 transition-opacity">
-                      <div className="flex items-center gap-3 min-w-0">
-                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                    <button key={tx.id} onClick={() => setEditingTx(tx)} className="w-full flex items-center justify-between group text-left hover:opacity-70 transition-opacity py-2">
+                      <div className="flex items-center gap-4 min-w-0">
+                         <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
                            tx.type === 'expense' ? 'bg-red-100 text-red-600 dark:bg-red-900/20' : tx.type === 'income' ? 'bg-green-100 text-green-600 dark:bg-green-900/20' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/20'
-                         }`}>{tx.type === 'expense' ? <TrendingDown size={18} /> : tx.type === 'income' ? <TrendingUp size={18} /> : <ArrowRightLeft size={18} />}</div>
+                         }`}>{tx.type === 'expense' ? <TrendingDown size={22} /> : tx.type === 'income' ? <TrendingUp size={22} /> : <ArrowRightLeft size={22} />}</div>
                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 dark:text-white truncate">{tx.title}</p>
-                            <p className="text-xs text-gray-500">{formatSmartDate(tx.date, settings.language)}</p>
+                            <p className="font-bold text-gray-900 dark:text-white truncate text-base">{tx.title}</p>
+                            <p className="text-sm text-gray-500">{formatSmartDate(tx.date, settings.language)}</p>
                          </div>
                       </div>
-                      <span className={`font-bold ml-2 whitespace-nowrap ${tx.type === 'expense' ? 'text-red-500' : tx.type === 'income' ? 'text-green-500' : 'text-blue-500'}`}>
+                      <span className={`font-bold ml-2 whitespace-nowrap text-lg ${tx.type === 'expense' ? 'text-red-500' : tx.type === 'income' ? 'text-green-500' : 'text-blue-500'}`}>
                          {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}{displayAmount(tx.amount, tx.currency)}
                       </span>
                     </button>
@@ -242,29 +248,107 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
             </div>
           </div>
         )}
+
+        {/* NEW BUDGETS TAB */}
+        {activeTab === 'budgets' && (
+            <div className="space-y-6 animate-fade-in">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t.budget_title}</h3>
+                    <button 
+                        onClick={() => setShowAddBudget(!showAddBudget)} 
+                        className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-5 py-2.5 rounded-full text-base font-bold transition-colors flex items-center gap-2"
+                    >
+                        <Plus size={18} strokeWidth={3} /> {t.add_budget}
+                    </button>
+                </div>
+
+                {/* Simplified Budget Creator */}
+                {showAddBudget && (
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 animate-fade-in relative">
+                         <button onClick={() => setShowAddBudget(false)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                             <X size={20} />
+                         </button>
+                         <h4 className="font-bold mb-4 dark:text-white text-lg">{t.create_limit}</h4>
+                         <div className="flex gap-4 flex-col sm:flex-row">
+                             <select id="budget_cat" className="flex-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none text-lg dark:text-white">
+                                 {categories.filter(c => c.type === 'expense').map(c => (
+                                     <option key={c.key} value={c.key}>{t[c.key as keyof typeof t] || c.key}</option>
+                                 ))}
+                             </select>
+                             <input 
+                                id="budget_limit"
+                                type="number" 
+                                placeholder={t.limit_amount}
+                                className="flex-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none text-lg dark:text-white"
+                             />
+                             <button 
+                                onClick={() => {
+                                    const catSelect = document.getElementById('budget_cat') as HTMLSelectElement;
+                                    const limitInput = document.getElementById('budget_limit') as HTMLInputElement;
+                                    if (catSelect && limitInput && limitInput.value) {
+                                        addBudget({
+                                            id: Date.now().toString(),
+                                            categoryId: catSelect.value,
+                                            limit: parseFloat(limitInput.value),
+                                            currency: settings.currency,
+                                            period: 'monthly'
+                                        });
+                                        setShowAddBudget(false);
+                                    }
+                                }}
+                                className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-base"
+                             >
+                                 {t.add}
+                             </button>
+                         </div>
+                    </div>
+                )}
+
+                {budgets.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400">
+                        <PieChart size={48} className="mx-auto mb-2 opacity-30" />
+                        <p>{t.no_budgets}</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {budgets.map(b => (
+                            <BudgetCard key={b.id} budget={b} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        )}
         
-        {/* Goals & Debts Views (Simplified for brevity, logic remains from previous step) */}
+        {/* Goals & Debts Views */}
         {activeTab === 'goals' && (
           <div className="space-y-6 animate-fade-in">
              <div className="flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t.your_goals}</h3>
-                <button onClick={() => openManageModal('goal')} className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1"><Plus size={14} /> {t.add_goal}</button>
+                <button 
+                    onClick={() => openManageModal('goal')} 
+                    className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-5 py-2.5 rounded-full text-base font-bold transition-colors flex items-center gap-2"
+                >
+                    <Plus size={18} strokeWidth={3} /> {t.add_goal}
+                </button>
              </div>
              {goals.length === 0 ? <div className="text-center py-10 text-gray-400"><Target size={48} className="mx-auto mb-2 opacity-30" /><p>No active goals yet.</p></div> : goals.map(goal => {
                   const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
                   const remaining = Math.max(goal.targetAmount - goal.currentAmount, 0);
                   const Icon = goal.icon && IconMap[goal.icon] ? IconMap[goal.icon] : Target;
                   return (
-                    <button key={goal.id} onClick={() => openManageModal('goal', goal)} className="w-full text-left bg-white dark:bg-gray-900 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                      <div className="flex justify-between mb-2 items-center">
-                        <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600"><Icon size={18} /></div>
-                            <span className="font-bold text-lg dark:text-white truncate max-w-[150px]">{goal.name}</span>
+                    <button key={goal.id} onClick={() => openManageModal('goal', goal)} className="w-full text-left bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <div className="flex justify-between mb-4 items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600"><Icon size={22} /></div>
+                            <span className="font-bold text-xl dark:text-white truncate max-w-[200px]">{goal.name}</span>
                         </div>
-                        <span className="font-bold text-blue-600">{Math.round(progress)}%</span>
+                        <span className="font-bold text-blue-600 text-lg">{Math.round(progress)}%</span>
                       </div>
-                      <div className="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mb-3"><div className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div></div>
-                      <div className="flex justify-between text-sm flex-wrap gap-1"><span className="text-gray-500">{t.missing} <span className="text-gray-900 dark:text-white font-medium">{displayAmount(remaining, goal.currency)}</span></span><span className="text-gray-400">{t.target}: {displayAmount(goal.targetAmount, goal.currency)}</span></div>
+                      <div className="h-4 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mb-4"><div className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div></div>
+                      <div className="flex justify-between text-base flex-wrap gap-1">
+                          <span className="text-gray-500 font-medium">{t.missing} <span className="text-gray-900 dark:text-white font-bold">{displayAmount(remaining, goal.currency)}</span></span>
+                          <span className="text-gray-400 font-medium">{t.target}: {displayAmount(goal.targetAmount, goal.currency)}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -275,16 +359,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
           <div className="space-y-6 animate-fade-in">
              <div className="flex justify-between items-center">
                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t.tab_debts}</h3>
-                 <button onClick={() => openManageModal('debt')} className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1"><Plus size={14} /> {t.add_debt}</button>
+                 <button 
+                    onClick={() => openManageModal('debt')} 
+                    className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 px-5 py-2.5 rounded-full text-base font-bold transition-colors flex items-center gap-2"
+                 >
+                    <Plus size={18} strokeWidth={3} /> {t.add_debt}
+                 </button>
              </div>
              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-2xl border border-green-100 dark:border-green-900/20 overflow-hidden">
-                   <p className="text-green-600 text-sm font-medium mb-1 truncate">{t.owe_me}</p>
-                   <p className="text-2xl font-bold text-green-700 dark:text-green-500 truncate">{displayCompactAmount(totalDebtOwedToMe, settings.currency)}</p>
+                <div className="bg-green-50 dark:bg-green-900/10 p-5 rounded-3xl border border-green-100 dark:border-green-900/20 overflow-hidden">
+                   <p className="text-green-600 text-sm font-bold mb-1 truncate uppercase tracking-wider">{t.owe_me}</p>
+                   <p className="text-2xl sm:text-3xl font-bold text-green-700 dark:text-green-500 truncate">{displayCompactAmount(totalDebtOwedToMe, settings.currency)}</p>
                 </div>
-                <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-2xl border border-red-100 dark:border-red-900/20 overflow-hidden">
-                   <p className="text-red-600 text-sm font-medium mb-1 truncate">{t.i_owe}</p>
-                   <p className="text-2xl font-bold text-red-700 dark:text-red-500 truncate">{displayCompactAmount(totalDebtIOwe, settings.currency)}</p>
+                <div className="bg-red-50 dark:bg-red-900/10 p-5 rounded-3xl border border-red-100 dark:border-red-900/20 overflow-hidden">
+                   <p className="text-red-600 text-sm font-bold mb-1 truncate uppercase tracking-wider">{t.i_owe}</p>
+                   <p className="text-2xl sm:text-3xl font-bold text-red-700 dark:text-red-500 truncate">{displayCompactAmount(totalDebtIOwe, settings.currency)}</p>
                 </div>
              </div>
              <div className="space-y-4">
@@ -292,15 +381,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
                   const Icon = debt.icon && IconMap[debt.icon] ? IconMap[debt.icon] : Users;
                   const details = calculateDebtDetails(debt);
                   return (
-                  <button key={debt.id} onClick={() => openManageModal('debt', debt)} className="w-full text-left flex items-center justify-between p-4 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border-l-4 border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style={{ borderLeftColor: debt.type === 'i_owe' ? '#EF4444' : '#22C55E'}}>
-                     <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500 shrink-0"><Icon size={18} /></div>
+                  <button key={debt.id} onClick={() => openManageModal('debt', debt)} className="w-full text-left flex items-center justify-between p-5 bg-white dark:bg-gray-900 rounded-3xl shadow-sm border-l-8 border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style={{ borderLeftColor: debt.type === 'i_owe' ? '#EF4444' : '#22C55E'}}>
+                     <div className="flex items-center gap-4 min-w-0">
+                        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500 shrink-0"><Icon size={24} /></div>
                         <div className="min-w-0">
-                            <p className="font-bold text-gray-900 dark:text-white truncate">{debt.personName}</p>
-                            <p className="text-xs text-gray-500 truncate">{debt.description || t.debt_person}</p>
+                            <p className="font-bold text-gray-900 dark:text-white truncate text-lg">{debt.personName}</p>
+                            <p className="text-base text-gray-500 truncate mt-1">
+                                {debt.description || t.debt_person} • <span className="font-semibold text-gray-600 dark:text-gray-400">{debt.currency}</span>
+                            </p>
                         </div>
                      </div>
-                     <div className="text-right pl-2 shrink-0"><p className={`font-bold whitespace-nowrap ${debt.type === 'i_owe' ? 'text-red-500' : 'text-green-500'}`}>{displayAmount(details.total, debt.currency)}</p></div>
+                     <div className="text-right pl-2 shrink-0"><p className={`font-bold whitespace-nowrap text-lg ${debt.type === 'i_owe' ? 'text-red-500' : 'text-green-500'}`}>{displayAmount(details.total, debt.currency)}</p></div>
                   </button>
                   );
                 })}
@@ -310,8 +401,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onAddRecord, onViewHistory
       </div>
 
       <div className="fixed bottom-6 left-0 w-full px-6 flex justify-center z-50">
-         <button onClick={onAddRecord} className="bg-gray-900 dark:bg-white dark:text-black text-white px-8 py-4 rounded-full font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
-            <Plus size={24} strokeWidth={3} /> {t.new_record}
+         <button onClick={onAddRecord} className="bg-gray-900 dark:bg-white dark:text-black text-white px-8 py-4 rounded-full font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-xl">
+            <Plus size={28} strokeWidth={3} /> {t.new_record}
          </button>
       </div>
 

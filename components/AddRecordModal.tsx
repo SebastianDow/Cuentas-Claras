@@ -3,9 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { TRANSLATIONS, SUPPORTED_CURRENCIES, CATEGORY_KEYWORDS } from '../constants';
 import { Button } from './Button';
-import { X, MoreHorizontal, Briefcase, Laptop, Gift, TrendingUp, Utensils, Car, Zap, Film, ShoppingBag, Heart, BookOpen, Home, Repeat, BellRing, ArrowRightLeft, Trash2, Wallet, Delete, Calculator } from 'lucide-react';
+import { X, MoreHorizontal, Briefcase, Laptop, Gift, TrendingUp, Utensils, Car, Zap, Film, ShoppingBag, Heart, BookOpen, Home, Repeat, BellRing, ArrowRightLeft, Trash2, Wallet, Delete, Calculator, Mic } from 'lucide-react';
 import { Currency, TransactionType, Frequency, Transaction } from '../types';
-import { getCurrencySymbol, toLocalISOString, getRecurringFrequencyLabel, vibrate, evaluateMathExpression } from '../services/financeService';
+import { getCurrencySymbol, toLocalISOString, getRecurringFrequencyLabel, vibrate, evaluateMathExpression, parseVoiceInput } from '../services/financeService';
 import { IconMap } from './icons';
 
 interface AddRecordModalProps {
@@ -21,7 +21,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
   const [txType, setTxType] = useState<TransactionType>('expense');
   // Amount is a string to support keypad input like "50+20"
   const [amountStr, setAmountStr] = useState('');
-  const [isKeypadVisible, setIsKeypadVisible] = useState(!initialData); // Show keypad by default for new
+  const [showCalculator, setShowCalculator] = useState(false);
   
   const [currency, setCurrency] = useState<Currency>(settings.currency);
   const [title, setTitle] = useState('');
@@ -44,6 +44,9 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
   const [frequency, setFrequency] = useState<Frequency>('monthly');
   const [notifyRecurring, setNotifyRecurring] = useState(false);
   const [showRecurringSuggestion, setShowRecurringSuggestion] = useState(false);
+  
+  // Voice State
+  const [isListening, setIsListening] = useState(false);
 
   // Initialize Data for Edit Mode
   useEffect(() => {
@@ -85,9 +88,10 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
   useEffect(() => {
       if (!initialData && !isRecurring && title.length > 3) {
           // Check if user has similar previous transactions
+          const computed = evaluateMathExpression(amountStr);
           const similar = transactions.filter(tx => 
             tx.title.toLowerCase() === title.toLowerCase() && 
-            Math.abs(tx.amount - parseFloat(amountStr)) < 5 // Approx amount
+            Math.abs(tx.amount - computed) < 5 // Approx amount
           );
           if (similar.length >= 2) {
              setShowRecurringSuggestion(true);
@@ -104,12 +108,56 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
       } else if (val === 'DEL') {
           setAmountStr(prev => prev.slice(0, -1));
       } else if (val === 'OK') {
-          setIsKeypadVisible(false);
+          setShowCalculator(false);
       } else {
           // Prevent multiple decimals
           if (val === '.' && amountStr.includes('.') && !amountStr.includes('+') && !amountStr.includes('-')) return;
           setAmountStr(prev => prev + val);
       }
+  };
+
+  const startVoiceRecognition = () => {
+      if (!('webkitSpeechRecognition' in window)) {
+          alert('Voice recognition not supported in this browser.');
+          return;
+      }
+      
+      const SpeechRecognition = (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = settings.language === 'en' ? 'en-US' : (settings.language === 'pt' ? 'pt-BR' : 'es-ES');
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      setIsListening(true);
+      vibrate(50);
+
+      recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          const parsed = parseVoiceInput(transcript);
+          
+          if (parsed.amount) {
+              setAmountStr(parsed.amount);
+          }
+          if (parsed.title) {
+              setTitle(parsed.title);
+          }
+          if (parsed.category) {
+              setSelectedCategory(parsed.category);
+          }
+          setIsListening(false);
+          vibrate([50, 50]);
+      };
+
+      recognition.onerror = () => {
+          setIsListening(false);
+          alert(t.voice_error);
+      };
+
+      recognition.onend = () => {
+          setIsListening(false);
+      };
+
+      recognition.start();
   };
 
   const getComputedAmount = () => {
@@ -119,7 +167,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
 
   const availableCategories = categories.filter(c => c.type === txType);
   const availableAccounts = accounts;
-  const availableGoals = goals; 
 
   // GUARD: No Accounts
   if (availableAccounts.length === 0) {
@@ -186,13 +233,13 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
       
       <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 pointer-events-auto transform transition-transform duration-300 translate-y-0 shadow-2xl max-h-[92vh] overflow-y-auto custom-scrollbar flex flex-col">
         <div className="flex justify-between items-center mb-4 shrink-0">
-          <h2 className="text-xl font-bold dark:text-white">{initialData ? t.new_record.replace('Nuevo', 'Editar') : t.new_record}</h2>
-          <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full">
-            <X size={20} className="text-gray-600 dark:text-gray-300" />
+          <h2 className="text-2xl font-bold dark:text-white">{initialData ? t.new_record.replace('Nuevo', 'Editar') : t.new_record}</h2>
+          <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <X size={24} className="text-gray-600 dark:text-gray-300" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 flex-1 flex flex-col">
+        <form onSubmit={handleSubmit} className="space-y-6 flex-1 flex flex-col">
            
            {/* Transaction Type Sub-selector */}
            <div className="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl shrink-0">
@@ -210,7 +257,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                                 setAccountId(accounts[0]?.id || '');
                             }
                         }}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                        className={`flex-1 py-3 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${
                             txType === tt 
                             ? (tt === 'expense' ? 'bg-white text-red-600 shadow-sm' : tt === 'income' ? 'bg-white text-green-600 shadow-sm' : 'bg-white text-blue-600 shadow-sm')
                             : 'text-gray-400 dark:text-gray-500'
@@ -221,39 +268,67 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                 ))}
            </div>
 
-           {/* Amount Display & Keypad Trigger */}
+           {/* HYBRID INPUT: Native with Calculator Toggle */}
            <div className="relative shrink-0">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-2xl font-light">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-3xl font-light">
                   {getCurrencySymbol(currency)}
               </span>
-              <button
-                type="button"
-                onClick={() => setIsKeypadVisible(true)}
-                className="w-full pl-10 pr-20 py-4 text-4xl font-bold bg-transparent border-b-2 border-gray-100 dark:border-gray-800 outline-none text-left dark:text-white truncate"
-              >
-                  {amountStr || '0.00'}
-              </button>
               
-              <div className="absolute right-0 top-1/2 -translate-y-1/2">
+              <input
+                type={showCalculator ? "text" : "text"} // Use text to allow formulas like 50+20 if typing manually
+                inputMode={showCalculator ? "none" : "decimal"}
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-12 pr-28 py-4 text-5xl font-bold bg-transparent border-b-2 border-gray-100 dark:border-gray-800 outline-none text-left dark:text-white tracking-tight"
+                autoFocus={!initialData} // Auto focus native keyboard if new
+                readOnly={showCalculator} // Readonly if calc is open to force button usage
+              />
+              
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                 {/* Calculator Toggle */}
+                 <button 
+                   type="button"
+                   onClick={() => setShowCalculator(!showCalculator)}
+                   className={`p-2.5 rounded-lg transition-colors ${showCalculator ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-400 hover:text-gray-600'}`}
+                   title={t.calculator || 'Calculator'}
+                 >
+                     <Calculator size={22} />
+                 </button>
+
+                 {/* Voice Button */}
+                 {!initialData && (
+                     <button 
+                       type="button"
+                       onClick={startVoiceRecognition}
+                       className={`p-2.5 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-gray-400 hover:text-gray-600'}`}
+                     >
+                         <Mic size={22} />
+                     </button>
+                 )}
+                 
+                 {/* Currency */}
                 <select 
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value as Currency)}
-                  className="bg-gray-100 dark:bg-gray-800 rounded-lg px-2 py-1 text-sm font-bold text-gray-700 dark:text-gray-300 outline-none"
+                  className="bg-gray-100 dark:bg-gray-800 rounded-lg px-2 py-1.5 text-base font-bold text-gray-700 dark:text-gray-300 outline-none ml-1"
                 >
                     {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
            </div>
+           
+           {isListening && <p className="text-center text-sm text-blue-500 animate-pulse">{t.voice_listening}</p>}
 
-           {/* SMART KEYPAD (Collapsible) */}
-           {isKeypadVisible && (
-               <div className="grid grid-cols-4 gap-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-2xl animate-fade-in shrink-0">
+           {/* CALCULATOR KEYPAD (Conditional) */}
+           {showCalculator && (
+               <div className="grid grid-cols-4 gap-2 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl animate-fade-in shrink-0">
                    {['7','8','9','/','4','5','6','*','1','2','3','-','C','0','.','+'].map(k => (
                        <button
                          key={k}
                          type="button"
                          onClick={() => handleKeypadPress(k)}
-                         className={`h-12 rounded-xl text-xl font-bold shadow-sm active:scale-95 transition-transform ${
+                         className={`h-14 rounded-xl text-2xl font-bold shadow-sm active:scale-95 transition-transform ${
                              ['/','*','-','+'].includes(k) 
                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                              : k === 'C' 
@@ -264,10 +339,10 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                            {k}
                        </button>
                    ))}
-                   <button type="button" onClick={() => handleKeypadPress('DEL')} className="h-12 rounded-xl bg-gray-200 dark:bg-gray-600 flex items-center justify-center col-span-2">
-                       <Delete size={20} />
+                   <button type="button" onClick={() => handleKeypadPress('DEL')} className="h-14 rounded-xl bg-gray-200 dark:bg-gray-600 flex items-center justify-center col-span-2">
+                       <Delete size={24} />
                    </button>
-                   <button type="button" onClick={() => handleKeypadPress('OK')} className="h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center col-span-2 font-bold">
+                   <button type="button" onClick={() => handleKeypadPress('OK')} className="h-14 rounded-xl bg-blue-600 text-white flex items-center justify-center col-span-2 font-bold text-lg">
                        OK
                    </button>
                </div>
@@ -275,41 +350,41 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
 
            {/* Title/Name */}
            <div className="shrink-0">
-             <label className="block text-xs font-medium text-gray-500 mb-1">{t.concept}</label>
+             <label className="block text-sm font-semibold text-gray-500 mb-2">{t.concept}</label>
              <input 
                type="text"
                value={title}
                onChange={(e) => setTitle(e.target.value)}
-               className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+               className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg"
                placeholder={txType === 'transfer' ? "Saving money..." : "Uber, Starbucks, Netflix..."}
              />
            </div>
 
            {/* ACCOUNT & CATEGORY SECTION (Scrollable if needed) */}
-           <div className="space-y-5">
+           <div className="space-y-6">
                 {/* Transfer UI or Normal UI */}
                 {txType === 'transfer' ? (
-                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 flex flex-col gap-3">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-                            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none">
+                            <label className="block text-sm font-semibold text-gray-500 mb-2">From</label>
+                            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-800 rounded-xl text-base dark:text-white outline-none">
                                 {availableAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({getCurrencySymbol(acc.currency)}{acc.balance})</option>)}
                             </select>
                         </div>
-                        <div className="flex justify-center -my-2 z-10"><ArrowRightLeft size={16} className="text-gray-500" /></div>
+                        <div className="flex justify-center -my-3 z-10"><ArrowRightLeft size={20} className="text-gray-500" /></div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-                            <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none">
+                            <label className="block text-sm font-semibold text-gray-500 mb-2">To</label>
+                            <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-800 rounded-xl text-base dark:text-white outline-none">
                                 {availableAccounts.filter(a => a.id !== accountId).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                             </select>
                         </div>
                     </div>
                 ) : (
                     <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">{txType === 'income' ? t.account + ' / ' + t.target : t.account}</label>
+                        <label className="block text-sm font-semibold text-gray-500 mb-2">{txType === 'income' ? t.account + ' / ' + t.target : t.account}</label>
                         <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
                             {availableAccounts.map(acc => (
-                                <button key={acc.id} type="button" onClick={() => setAccountId(acc.id)} className={`px-4 py-2 rounded-xl whitespace-nowrap border text-sm font-medium transition-colors ${accountId === acc.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                                <button key={acc.id} type="button" onClick={() => setAccountId(acc.id)} className={`px-5 py-3 rounded-xl whitespace-nowrap border text-base font-bold transition-colors ${accountId === acc.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>
                                     {acc.name}
                                 </button>
                             ))}
@@ -320,8 +395,8 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                 {/* Categories */}
                 {txType !== 'transfer' && (
                     <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-2">{t.category}</label>
-                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                        <label className="block text-sm font-semibold text-gray-500 mb-2">{t.category}</label>
+                        <div className="grid grid-cols-4 gap-3">
                             {availableCategories.map(cat => {
                                 const Icon = IconMap[cat.icon] || MoreHorizontal;
                                 return (
@@ -329,16 +404,16 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                                         key={cat.id}
                                         type="button"
                                         onClick={() => setSelectedCategory(cat.key)}
-                                        className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${
+                                        className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all ${
                                             selectedCategory === cat.key
                                             ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500'
                                             : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
                                         }`}
                                     >
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${cat.color} bg-opacity-20`}>
-                                            <Icon size={16} />
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-1.5 ${cat.color} bg-opacity-20`}>
+                                            <Icon size={20} />
                                         </div>
-                                        <span className="text-[10px] text-gray-600 dark:text-gray-400 truncate w-full text-center">
+                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400 truncate w-full text-center">
                                             {t[cat.key as keyof typeof t] || cat.key}
                                         </span>
                                     </button>
@@ -353,46 +428,46 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
            {showRecurringSuggestion && !isRecurring && (
                <div 
                  onClick={() => { setIsRecurring(true); setFrequency('monthly'); setShowRecurringSuggestion(false); }}
-                 className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl flex items-center gap-3 cursor-pointer border border-blue-100 dark:border-blue-800 animate-fade-in"
+                 className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl flex items-center gap-3 cursor-pointer border border-blue-100 dark:border-blue-800 animate-fade-in"
                >
-                   <div className="bg-blue-100 dark:bg-blue-800 p-1.5 rounded-full text-blue-600 dark:text-blue-300">
-                       <Repeat size={14} />
+                   <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-full text-blue-600 dark:text-blue-300">
+                       <Repeat size={18} />
                    </div>
-                   <span className="text-xs text-blue-700 dark:text-blue-200 font-medium">
+                   <span className="text-sm text-blue-700 dark:text-blue-200 font-medium">
                        {t.recurring_suggestion} <b>{t.is_recurring}</b>
                    </span>
                </div>
            )}
             
-            <div className="flex gap-3">
+            <div className="flex gap-4">
                  <div className="flex-[3]">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.description}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.description}</label>
                     <textarea 
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={1}
-                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none"
+                    className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none text-base"
                     placeholder="..."
                     />
                  </div>
                  <div className="flex-[2]">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.date}</label>
+                    <label className="block text-sm font-semibold text-gray-500 mb-2">{t.date}</label>
                     <input 
                         type="datetime-local"
                         value={dateStr}
                         onChange={(e) => setDateStr(e.target.value)}
-                        className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-xs min-w-0"
+                        className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm min-w-0"
                     />
                  </div>
             </div>
 
            {/* Recurring Toggle Section */}
            {!initialData && (
-               <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-4">
+               <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-100 dark:border-gray-800 space-y-4">
                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <Repeat size={16} className="text-gray-500" />
-                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t.is_recurring}</span>
+                      <div className="flex items-center gap-3">
+                         <Repeat size={20} className="text-gray-500" />
+                         <span className="text-base font-bold text-gray-700 dark:text-gray-200">{t.is_recurring}</span>
                       </div>
                       <button 
                         type="button"
@@ -404,19 +479,19 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                   </div>
                   
                   {isRecurring && (
-                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-fade-in">
+                      <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-fade-in">
                           <div>
                             <select 
                                value={frequency}
                                onChange={(e) => setFrequency(e.target.value as Frequency)}
-                               className="w-full p-2 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-gray-700 mb-2"
+                               className="w-full p-3 bg-white dark:bg-gray-800 rounded-lg text-base text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-gray-700 mb-2"
                             >
                                <option value="daily">{t.freq_daily}</option>
                                <option value="weekly">{t.freq_weekly}</option>
                                <option value="monthly">{t.freq_monthly}</option>
                                <option value="yearly">{t.freq_yearly}</option>
                             </select>
-                            <p className="text-xs text-blue-500 font-medium italic">
+                            <p className="text-sm text-blue-500 font-medium italic">
                                 {getRecurringFrequencyLabel(frequency, new Date(dateStr).toISOString(), settings.language)}
                             </p>
                           </div>
@@ -425,13 +500,13 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, initial
                </div>
            )}
 
-           <div className="flex gap-3 pt-2 mt-auto">
+           <div className="flex gap-4 pt-4 mt-auto">
                {initialData && (
-                   <Button type="button" variant="secondary" onClick={handleDelete} className="flex-1 text-red-500 hover:text-red-600 flex items-center justify-center gap-2">
-                       <Trash2 size={18} /> {t.delete}
+                   <Button type="button" variant="secondary" onClick={handleDelete} className="flex-1 text-red-500 hover:text-red-600 flex items-center justify-center gap-2 text-lg">
+                       <Trash2 size={20} /> {t.delete}
                    </Button>
                )}
-               <Button type="submit" variant="primary" size="lg" className={initialData ? "flex-[2]" : "w-full"}>
+               <Button type="submit" variant="primary" size="lg" className={initialData ? "flex-[2] text-lg font-bold" : "w-full text-lg font-bold"}>
                   {t.save}
                </Button>
            </div>

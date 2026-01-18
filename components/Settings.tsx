@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { TRANSLATIONS, SUPPORTED_CURRENCIES } from '../constants';
@@ -141,6 +142,9 @@ export const SettingsScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                    <option value="en">English</option>
                    <option value="fr">Français</option>
                    <option value="pt">Português</option>
+                   <option value="de">Deutsch</option>
+                   <option value="it">Italiano</option>
+                   <option value="ja">日本語</option>
                  </select>
              </div>
         </SettingRow>
@@ -234,7 +238,7 @@ export const SettingsScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => 
             <button className="text-blue-500 font-medium hover:underline">
                {t.feedback}
             </button>
-            <p className="text-xs text-gray-400 mt-2">v1.5.0 • Cuentas Claras</p>
+            <p className="text-xs text-gray-400 mt-2">v1.6.0 • Cuentas Claras</p>
         </div>
       </div>
     </div>

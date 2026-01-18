@@ -1,6 +1,6 @@
 
-export type Language = 'es' | 'en' | 'fr' | 'pt';
-export type Currency = 'USD' | 'EUR' | 'COP' | 'MXN' | 'GBP';
+export type Language = 'es' | 'en' | 'fr' | 'pt' | 'de' | 'it' | 'ja';
+export type Currency = 'USD' | 'EUR' | 'COP' | 'MXN' | 'GBP' | 'BRL' | 'ARS' | 'CLP' | 'PEN' | 'JPY' | 'CNY' | 'INR' | 'KRW' | 'CAD' | 'AUD' | 'CHF';
 export type Theme = 'light' | 'dark' | 'system';
 
 export type TransactionType = 'expense' | 'income' | 'transfer';
@@ -80,6 +80,14 @@ export interface Goal {
   deadline?: string;
   isCompleted: boolean;
   icon?: string;
+}
+
+export interface Budget {
+    id: string;
+    categoryId: string; // Links to a Category Key
+    limit: number;
+    currency: Currency;
+    period: 'monthly'; // Simplified for UX
 }
 
 export interface Debt {

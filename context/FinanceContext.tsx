@@ -1,9 +1,8 @@
 
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { UserSettings, Account, Transaction, Goal, Debt, Currency, Language, Category, RecurringRule } from '../types';
+import { UserSettings, Account, Transaction, Goal, Debt, Currency, Language, Category, RecurringRule, Budget, ExchangeRates } from '../types';
 import { DEFAULT_CATEGORIES } from '../constants';
-import { convertCurrency, calculateNextDate } from '../services/financeService';
+import { convertCurrency, calculateNextDate, fetchExchangeRates, detectDefaultCurrency } from '../services/financeService';
 import { v4 as uuidv4 } from 'uuid'; 
 
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -31,9 +30,11 @@ interface FinanceContextProps {
   debts: Debt[];
   categories: Category[];
   recurringRules: RecurringRule[]; 
+  budgets: Budget[];
   alerts: Alert[];
   isPrivacyEnabled: boolean;
-  toast: ToastMessage | null; // Toast State
+  toast: ToastMessage | null;
+  exchangeRates: ExchangeRates;
 
   togglePrivacyMode: () => void;
   exportData: () => void;
@@ -53,6 +54,10 @@ interface FinanceContextProps {
   updateGoal: (goal: Goal) => void;
   deleteGoal: (id: string) => void;
 
+  addBudget: (budget: Budget) => void;
+  updateBudget: (budget: Budget) => void;
+  deleteBudget: (id: string) => void;
+
   addDebt: (debt: Debt) => void;
   updateDebt: (debt: Debt) => void;
   deleteDebt: (id: string) => void;
@@ -64,18 +69,17 @@ interface FinanceContextProps {
 
 const FinanceContext = createContext<FinanceContextProps | undefined>(undefined);
 
-// Helper to detect language
 const detectBrowserLanguage = (): Language => {
     if (typeof navigator === 'undefined') return 'es';
     const lang = navigator.language.split('-')[0];
-    if (lang === 'en' || lang === 'fr' || lang === 'pt') return lang as Language;
+    if (['en','fr','pt','de','it','ja'].includes(lang)) return lang as Language;
     return 'es'; 
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
   name: '',
   theme: 'system',
-  currency: 'USD',
+  currency: 'USD', // Will be overridden by detectDefaultCurrency in state init if new
   language: 'es',
   hasOnboarded: false,
   notifications: {
@@ -94,9 +98,26 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (saved) {
         return JSON.parse(saved);
     } else {
-        return { ...DEFAULT_SETTINGS, language: detectBrowserLanguage() };
+        const detectedCurrency = detectDefaultCurrency();
+        return { 
+            ...DEFAULT_SETTINGS, 
+            language: detectBrowserLanguage(),
+            currency: detectedCurrency
+        };
     }
   });
+
+  // Rates State
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({});
+
+  // Fetch Rates on Mount
+  useEffect(() => {
+      const loadRates = async () => {
+          const rates = await fetchExchangeRates('USD');
+          setExchangeRates(rates);
+      };
+      loadRates();
+  }, []);
 
   useEffect(() => {
     if (!settings.notifications) {
@@ -120,6 +141,11 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [goals, setGoals] = useState<Goal[]>(() => {
     const saved = localStorage.getItem('cc_goals');
     return saved ? JSON.parse(saved) : [];
+  });
+
+  const [budgets, setBudgets] = useState<Budget[]>(() => {
+      const saved = localStorage.getItem('cc_budgets');
+      return saved ? JSON.parse(saved) : [];
   });
 
   const [debts, setDebts] = useState<Debt[]>(() => {
@@ -146,6 +172,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   useEffect(() => localStorage.setItem('cc_transactions', JSON.stringify(transactions)), [transactions]);
   useEffect(() => localStorage.setItem('cc_goals', JSON.stringify(goals)), [goals]);
   useEffect(() => localStorage.setItem('cc_debts', JSON.stringify(debts)), [debts]);
+  useEffect(() => localStorage.setItem('cc_budgets', JSON.stringify(budgets)), [budgets]);
   useEffect(() => localStorage.setItem('cc_recurring_rules', JSON.stringify(recurringRules)), [recurringRules]);
 
   // Theme Handling
@@ -169,23 +196,29 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       setToast(null);
   };
 
-  // Helper to handle balance updates (Apply or Revert)
+  // --- CORE LOGIC: PROCESS TRANSACTION IMPACT ---
+  // Fixes: Ensures cross-currency transactions convert properly before modifying account balance
   const processTransactionImpact = (transaction: Transaction, revert: boolean = false) => {
       const multiplier = revert ? -1 : 1;
+
+      // Helper to calculate impact amount in target currency
+      const getImpactAmount = (txAmount: number, txCurrency: Currency, targetCurrency: Currency): number => {
+          if (txCurrency === targetCurrency) return txAmount;
+          return convertCurrency(txAmount, txCurrency, targetCurrency, exchangeRates);
+      };
 
       // 1. Handle Transfers
       if (transaction.type === 'transfer' && transaction.toAccountId) {
           setAccounts(prev => prev.map(acc => {
               if (acc.id === transaction.accountId) {
                   // Source: Subtract (or Add if reverting)
-                  return { ...acc, balance: acc.balance - (transaction.amount * multiplier) };
+                  const amountInSourceCurrency = getImpactAmount(transaction.amount, transaction.currency, acc.currency);
+                  return { ...acc, balance: acc.balance - (amountInSourceCurrency * multiplier) };
               }
               if (acc.id === transaction.toAccountId) {
                   // Dest: Add (or Subtract if reverting)
-                  const convertedAmount = transaction.currency === acc.currency 
-                    ? transaction.amount 
-                    : convertCurrency(transaction.amount, transaction.currency, acc.currency);
-                  return { ...acc, balance: acc.balance + (convertedAmount * multiplier) };
+                  const amountInDestCurrency = getImpactAmount(transaction.amount, transaction.currency, acc.currency);
+                  return { ...acc, balance: acc.balance + (amountInDestCurrency * multiplier) };
               }
               return acc;
           }));
@@ -198,7 +231,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
           setGoals(prev => prev.map(g => {
               if (g.id === transaction.accountId) {
                   const impact = transaction.type === 'income' ? transaction.amount : -transaction.amount;
-                  return { ...g, currentAmount: g.currentAmount + (impact * multiplier) };
+                  const amountInGoalCurrency = getImpactAmount(impact, transaction.currency, g.currency);
+                  return { ...g, currentAmount: g.currentAmount + (amountInGoalCurrency * multiplier) };
               }
               return g;
           }));
@@ -207,7 +241,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
           setAccounts(prev => prev.map(acc => {
             if (acc.id === transaction.accountId) {
               const amount = transaction.type === 'expense' ? -transaction.amount : transaction.amount;
-              return { ...acc, balance: acc.balance + (amount * multiplier) };
+              const amountInAccountCurrency = getImpactAmount(amount, transaction.currency, acc.currency);
+              return { ...acc, balance: acc.balance + (amountInAccountCurrency * multiplier) };
             }
             return acc;
           }));
@@ -270,7 +305,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     // Low Balance Check
     if (settings.notifications.lowBalance && accounts.length > 0 && transactions.length > 0) {
         const totalBalance = accounts.reduce((sum, acc) => 
-            sum + convertCurrency(acc.balance, acc.currency, settings.currency), 0
+            sum + convertCurrency(acc.balance, acc.currency, settings.currency, exchangeRates), 0
         );
         const hasAlert = alerts.some(a => a.type === 'low_balance');
         if (totalBalance < settings.notifications.lowBalanceThreshold && !hasAlert) {
@@ -306,7 +341,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
             }
         });
     }
-  }, [settings, accounts, debts, goals, alerts, transactions.length]);
+  }, [settings, accounts, debts, goals, alerts, transactions.length, exchangeRates]);
 
   // --- ACTIONS ---
 
@@ -316,7 +351,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     const data = {
         version: 1,
         timestamp: new Date().toISOString(),
-        settings, accounts, transactions, goals, debts, recurringRules
+        settings, accounts, transactions, goals, debts, recurringRules, budgets
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -338,6 +373,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
           if (data.goals) setGoals(data.goals);
           if (data.debts) setDebts(data.debts);
           if (data.recurringRules) setRecurringRules(data.recurringRules);
+          if (data.budgets) setBudgets(data.budgets);
           return true;
       } catch (e) {
           console.error("Import failed", e);
@@ -352,13 +388,9 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const addAccount = (account: Account) => setAccounts(prev => [...prev, account]);
   const updateAccount = (account: Account) => setAccounts(prev => prev.map(a => a.id === account.id ? account : a));
   
-  // ROBUST DELETION: Cascading delete of transactions when account is deleted
   const deleteAccount = (id: string) => {
-    // 1. Filter out transactions belonging to this account
     setTransactions(prev => prev.filter(tx => tx.accountId !== id && tx.toAccountId !== id));
-    // 2. Filter out recurring rules linked to this account
     setRecurringRules(prev => prev.filter(rule => rule.template.accountId !== id && rule.template.toAccountId !== id));
-    // 3. Delete the account
     setAccounts(prev => prev.filter(a => a.id !== id));
   };
 
@@ -398,21 +430,17 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       setTransactions(prev => prev.map(t => t.id === transaction.id ? transaction : t));
   };
 
-  // SMART UNDO LOGIC
   const deleteTransaction = (id: string) => {
       const tx = transactions.find(t => t.id === id);
       if (tx) {
-          // 1. Remove Logic
-          processTransactionImpact(tx, true); // Revert Balance
+          processTransactionImpact(tx, true);
           setTransactions(prev => prev.filter(t => t.id !== id));
           
-          // 2. Show Toast with Undo Action
           const restore = () => {
               addTransaction(tx); // Re-add
               hideToast();
           };
           
-          // Determine friendly message
           const msgMap: Record<string, string> = {
               'es': 'Transacción eliminada',
               'en': 'Transaction deleted',
@@ -442,17 +470,22 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const updateDebt = (debt: Debt) => setDebts(prev => prev.map(d => d.id === debt.id ? debt : d));
   const deleteDebt = (id: string) => setDebts(prev => prev.filter(d => d.id !== id));
 
+  const addBudget = (budget: Budget) => setBudgets(prev => [...prev, budget]);
+  const updateBudget = (budget: Budget) => setBudgets(prev => prev.map(b => b.id === budget.id ? budget : b));
+  const deleteBudget = (id: string) => setBudgets(prev => prev.filter(b => b.id !== id));
+
   const dismissAlert = (id: string) => setAlerts(prev => prev.filter(a => a.id !== id));
 
   return (
     <FinanceContext.Provider value={{
-      settings, accounts, transactions, goals, debts, categories, alerts, isPrivacyEnabled, recurringRules, toast,
+      settings, accounts, transactions, goals, debts, categories, alerts, isPrivacyEnabled, recurringRules, toast, budgets, exchangeRates,
       togglePrivacyMode, exportData, importData,
       updateSettings, 
       addAccount, updateAccount, deleteAccount, 
       addTransaction, updateTransaction, deleteTransaction, deleteRecurringRule,
       addGoal, updateGoal, deleteGoal,
       addDebt, updateDebt, deleteDebt,
+      addBudget, updateBudget, deleteBudget,
       dismissAlert, showToast, hideToast
     }}>
       {children}
